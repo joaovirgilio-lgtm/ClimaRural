@@ -8,7 +8,7 @@ O ClimaRural consulta previsões meteorológicas por meio da API Open-Meteo, arm
 
 ## Funcionalidades
 
-- Consulta de condições meteorológicas atuais por coordenadas geográficas.
+- Consulta de condições meteorológicas por coordenadas geográficas.
 - Previsão diária para até sete dias.
 - Indicadores de temperatura, umidade, vento e precipitação.
 - Histórico de consultas armazenado no SQLite.
@@ -48,12 +48,14 @@ ClimaRural/
 │   ├── main.py
 │   ├── database.py
 │   ├── mongo_db.py
-│   └── duckdb_db.py
+│   ├── duckdb_db.py
+│   ├── .env.example
+│   └── .env                 # criar localmente; não publicar
 ├── data/
 │   ├── previsoes_para_knime.csv
 │   └── previsoes_tratadas.csv
 ├── etl/
-│   └── ETL_ClimaRural.knwf   # exportar o workflow KNIME para esta pasta
+│   └── ETL_ClimaRural.knwf  # exportar do KNIME e adicionar ao repositório
 ├── frontend/
 │   ├── public/
 │   ├── src/
@@ -64,7 +66,7 @@ ClimaRural/
 └── requirements.txt
 ```
 
-> O arquivo `backend/.env` contém credenciais e deve ser criado localmente. Ele não deve ser enviado ao GitHub. A pasta `.venv`, `node_modules` e os bancos locais também são criados no computador em que o projeto é executado e não devem ser versionados.
+> O arquivo `backend/.env` contém credenciais e deve ser criado localmente. Ele não deve ser enviado ao GitHub. A pasta `.venv`, `node_modules` e os bancos locais também não devem ser versionados.
 
 ## Pré-requisitos
 
@@ -72,11 +74,11 @@ ClimaRural/
 - Node.js e npm instalados.
 - KNIME Analytics Platform para abrir e executar o workflow ETL.
 - Acesso à internet para consultar a Open-Meteo e conectar ao MongoDB Atlas.
-- Credenciais válidas de um usuário de banco no MongoDB Atlas e endereço IP autorizado no Atlas.
+- Usuário de banco no MongoDB Atlas e endereço IP do computador autorizado no Atlas.
 
 ## Configuração do backend
 
-Na raiz do projeto, crie e ative o ambiente virtual:
+Abra um terminal na pasta raiz do projeto (`ClimaRural`). Crie e ative o ambiente virtual:
 
 ```powershell
 py -m venv .venv
@@ -89,7 +91,7 @@ Instale as dependências:
 pip install -r requirements.txt
 ```
 
-Crie `backend/.env` com os dados do seu usuário de banco MongoDB Atlas:
+Crie o arquivo `backend/.env` a partir de `backend/.env.example` e preencha as credenciais do seu usuário de banco MongoDB Atlas:
 
 ```env
 MONGODB_USER=seu_usuario_do_banco
@@ -98,9 +100,9 @@ MONGODB_HOST=seu_cluster.mongodb.net
 MONGODB_DATABASE=climarural
 ```
 
-Não compartilhe esse arquivo nem publique suas credenciais. Se a senha contiver caracteres especiais, o código do backend aplica codificação para URL.
+Não compartilhe esse arquivo nem publique suas credenciais. Se a senha contiver caracteres especiais, o backend deve codificá-los para uso na URI.
 
-Inicie o backend:
+Inicie o backend em um terminal, a partir da raiz do projeto:
 
 ```powershell
 cd backend
@@ -111,7 +113,7 @@ Documentação interativa da API: <http://127.0.0.1:8000/docs>
 
 ## Configuração do frontend
 
-Em um segundo terminal, entre na pasta do frontend e instale as dependências:
+Abra um segundo terminal na raiz do projeto (`ClimaRural`). Entre na pasta do frontend, instale as dependências e inicie o servidor de desenvolvimento:
 
 ```powershell
 cd frontend
@@ -141,11 +143,11 @@ http://127.0.0.1:8000/api/clima?latitude=-23.5505&longitude=-46.6333
 
 ## Executar o processo ETL no KNIME
 
-1. Execute `/api/etl/exportar` na documentação da API para gerar `data/previsoes_para_knime.csv`.
-2. Abra o workflow `etl/ETL_ClimaRural.knwf` no KNIME Analytics Platform.
+1. Inicie o backend e execute `/api/etl/exportar` na documentação da API para gerar `data/previsoes_para_knime.csv`.
+2. Abra o workflow `etl/ETL_ClimaRural.knwf` no KNIME Analytics Platform. Se o arquivo ainda não estiver na pasta `etl`, exporte o workflow pelo KNIME e adicione o arquivo ao repositório.
 3. Confira o caminho do arquivo no nó CSV Reader. Em outro computador, ajuste o caminho para a pasta `data` daquele computador, se necessário.
 4. Execute o fluxo: CSV Reader → Column Filter → Missing Value → Math Formula → CSV Writer.
-5. No Math Formula, a amplitude térmica é calculada por `temperatura_maxima - temperatura_minima` e gravada na coluna `amplitude_termica`.
+5. No Math Formula, calcule a amplitude térmica por `temperatura_maxima - temperatura_minima` e grave o resultado na coluna `amplitude_termica`.
 6. Configure o CSV Writer para gravar `data/previsoes_tratadas.csv`.
 7. Execute `/api/etl/resultado` para conferir se o backend consegue ler o resultado tratado.
 

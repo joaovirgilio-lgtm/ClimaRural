@@ -1,16 +1,162 @@
-# React + Vite
+# ClimaRural 🌱
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Sistema de monitoramento climático que integra dados meteorológicos e apresenta informações para apoiar o planejamento de pequenos produtores rurais.
 
-Currently, two official plugins are available:
+## Objetivo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+O ClimaRural consulta previsões meteorológicas por meio da API Open-Meteo, armazena os dados em diferentes tecnologias, aplica um processo ETL no KNIME e disponibiliza indicadores em uma interface web.
 
-## React Compiler
+## Funcionalidades
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Consulta de condições meteorológicas atuais por coordenadas geográficas.
+- Previsão diária para até sete dias.
+- Indicadores de temperatura, umidade, vento e precipitação.
+- Histórico de consultas armazenado no SQLite.
+- Armazenamento dos dados meteorológicos originais no MongoDB Atlas.
+- Consolidação e análise de previsões no DuckDB.
+- Exportação de dados do DuckDB para CSV.
+- Tratamento dos dados no KNIME, incluindo cálculo da amplitude térmica.
+- Exibição dos dados tratados em um painel React.
 
-## Expanding the Oxlint configuration
+## Tecnologias
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+| Camada | Tecnologia | Finalidade |
+|---|---|---|
+| API externa | Open-Meteo | Fornecer dados meteorológicos |
+| Backend | Python, FastAPI, HTTPX | Consultar, integrar e disponibilizar dados |
+| Banco relacional | SQLite | Guardar o histórico de consultas |
+| Banco NoSQL | MongoDB Atlas | Guardar documentos meteorológicos originais |
+| Banco analítico | DuckDB | Consolidar e analisar previsões diárias |
+| ETL | KNIME Analytics Platform | Ler, filtrar, tratar e transformar os dados |
+| Frontend | React, Vite, CSS | Apresentar indicadores e previsões |
+
+## Arquitetura e fluxo de dados
+
+1. O backend Python consulta a API Open-Meteo.
+2. A resposta é armazenada no SQLite, MongoDB Atlas e DuckDB.
+3. O DuckDB exporta os registros diários para `data/previsoes_para_knime.csv`.
+4. O KNIME lê o CSV, seleciona colunas, trata valores ausentes e calcula `amplitude_termica` (temperatura máxima menos temperatura mínima).
+5. O KNIME grava `data/previsoes_tratadas.csv`.
+6. O backend disponibiliza o resultado tratado pela rota `/api/etl/resultado`.
+7. O frontend React consulta o backend e apresenta o clima e a tabela de dados tratados.
+
+## Estrutura do projeto
+
+```text
+ClimaRural/
+├── backend/
+│   ├── main.py
+│   ├── database.py
+│   ├── mongo_db.py
+│   └── duckdb_db.py
+├── data/
+│   ├── previsoes_para_knime.csv
+│   └── previsoes_tratadas.csv
+├── etl/
+│   └── ETL_ClimaRural.knwf   # exportar o workflow KNIME para esta pasta
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   ├── package.json
+│   └── package-lock.json
+├── .gitignore
+├── README.md
+└── requirements.txt
+```
+
+> O arquivo `backend/.env` contém credenciais e deve ser criado localmente. Ele não deve ser enviado ao GitHub. A pasta `.venv`, `node_modules` e os bancos locais também são criados no computador em que o projeto é executado e não devem ser versionados.
+
+## Pré-requisitos
+
+- Python instalado.
+- Node.js e npm instalados.
+- KNIME Analytics Platform para abrir e executar o workflow ETL.
+- Acesso à internet para consultar a Open-Meteo e conectar ao MongoDB Atlas.
+- Credenciais válidas de um usuário de banco no MongoDB Atlas e endereço IP autorizado no Atlas.
+
+## Configuração do backend
+
+Na raiz do projeto, crie e ative o ambiente virtual:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Instale as dependências:
+
+```powershell
+pip install -r requirements.txt
+```
+
+Crie `backend/.env` com os dados do seu usuário de banco MongoDB Atlas:
+
+```env
+MONGODB_USER=seu_usuario_do_banco
+MONGODB_PASSWORD="sua_senha_do_banco"
+MONGODB_HOST=seu_cluster.mongodb.net
+MONGODB_DATABASE=climarural
+```
+
+Não compartilhe esse arquivo nem publique suas credenciais. Se a senha contiver caracteres especiais, o código do backend aplica codificação para URL.
+
+Inicie o backend:
+
+```powershell
+cd backend
+python -m uvicorn main:app --reload
+```
+
+Documentação interativa da API: <http://127.0.0.1:8000/docs>
+
+## Configuração do frontend
+
+Em um segundo terminal, entre na pasta do frontend e instale as dependências:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Abra a aplicação em <http://localhost:5173>.
+
+## Principais rotas da API
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/` | Informações iniciais do sistema |
+| GET | `/api/clima` | Consulta o clima e grava nos três bancos; requer `latitude` e `longitude` |
+| GET | `/api/historico` | Consulta o histórico no SQLite |
+| GET | `/api/analise` | Retorna resumo analítico do DuckDB |
+| GET | `/api/etl/exportar` | Exporta dados do DuckDB para CSV de entrada do KNIME |
+| GET | `/api/etl/resultado` | Lê o CSV tratado pelo KNIME |
+| GET | `/api/status` | Retorna informações de configuração do sistema |
+
+Exemplo de consulta meteorológica:
+
+```text
+http://127.0.0.1:8000/api/clima?latitude=-23.5505&longitude=-46.6333
+```
+
+## Executar o processo ETL no KNIME
+
+1. Execute `/api/etl/exportar` na documentação da API para gerar `data/previsoes_para_knime.csv`.
+2. Abra o workflow `etl/ETL_ClimaRural.knwf` no KNIME Analytics Platform.
+3. Confira o caminho do arquivo no nó CSV Reader. Em outro computador, ajuste o caminho para a pasta `data` daquele computador, se necessário.
+4. Execute o fluxo: CSV Reader → Column Filter → Missing Value → Math Formula → CSV Writer.
+5. No Math Formula, a amplitude térmica é calculada por `temperatura_maxima - temperatura_minima` e gravada na coluna `amplitude_termica`.
+6. Configure o CSV Writer para gravar `data/previsoes_tratadas.csv`.
+7. Execute `/api/etl/resultado` para conferir se o backend consegue ler o resultado tratado.
+
+## Repositório
+
+Código-fonte: <https://github.com/joaovirgilio-lgtm/ClimaRural>
+
+## Fonte dos dados
+
+Open-Meteo: <https://open-meteo.com/>
+
+## Projeto acadêmico
+
+Desenvolvido para a disciplina de Integração de Dados.
